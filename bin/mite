@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'aws-sdk-sqs'
+require 'rack'
+
+require 'mite'
+require 'arthropod'
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{$PROGRAM_NAME} [options]"
+
+  opts.on("-q", "--queue [string]", "SQS queue name") do |q|
+    options[:queue] = q
+  end
+  opts.on("-i", "--access-key-id [string]", "AWS access key ID, default to the AWS_ACCESS_KEY_ID environment variable") do |i|
+    options[:access_key_id] = i
+  end
+  opts.on("-k", "--secret-access-key [string]", "AWS secret access key, default to the AWS_SECRET_ACCESS_KEY environment variable") do |k|
+    options[:secret_access_key] = k
+  end
+  opts.on("-r", "--region [string]", "AWS region, default to the AWS_REGION environment variable") do |r|
+    options[:region] = r
+  end
+  opts.on("-c", "--config [string]", "Path of the config.ru file, default to ./config.ru") do |c|
+    options[:config] = c
+  end
+end.parse!
+
+access_key_id = options[:access_key_id] || ENV["AWS_ACCESS_KEY_ID"]
+secret_access_key = options[:secret_access_key] || ENV["AWS_SECRET_ACCESS_KEY"]
+region = options[:region] || ENV["AWS_REGION"]
+config = options[:config] || './config.ru'
+
+client = Aws::SQS::Client.new({
+  access_key_id: access_key_id,
+  secret_access_key: secret_access_key,
+  region: region,
+})
+
+server = Mite::Server.new(config: config)
+loop do
+  Arthropod::Server.pull(client: client, queue_name: options[:queue] || ENV["QUEUE_NAME"]) do |request|
+    status, headers, chunks = server.process(request.body)
+    [ status, headers, chunks.map(&:to_s).join]
+  end
+end
