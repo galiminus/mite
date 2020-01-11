@@ -1,5 +1,3 @@
-require 'byebug'
-
 module Mite
   class Server
     attr_accessor :application
