@@ -42,7 +42,13 @@ client = Aws::SQS::Client.new({
 server = Mite::Server.new(config: config)
 loop do
   Arthropod::Server.pull(client: client, queue_name: options[:queue] || ENV["QUEUE_NAME"]) do |request|
-    status, headers, chunks = server.process(request.body)
-    [ status, headers, chunks.map(&:to_s).join]
+    status, headers, io = server.process(request.body)
+
+    chunks = []
+    io.each do |chunk|
+      chunks << chunk
+    end
+
+    [ status, headers, chunks.join ]
   end
 end
